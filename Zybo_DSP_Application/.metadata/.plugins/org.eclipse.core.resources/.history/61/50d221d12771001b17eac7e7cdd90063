@@ -1,0 +1,191 @@
+// Processing functions
+#include "processing.h"
+#include "kissFFT/kiss_fft.h"
+#include <unistd.h>
+
+void benchmark(){
+    int mc_runs = 50;
+    struct_timer timer;
+    /*--------------------------------------------------------------------------
+     * --- Main benchmark call (Monte carlo)
+     * --------------------------------------------------------------------------*/
+    printf("Starting routine\n");
+    timer = tic();
+    float ppm_mean = 0;
+    int ppm_tmp;
+    for (int c = 0 ; c < mc_runs ; c++){
+        ppm_tmp = processing();
+        ppm_mean += (float) ppm_tmp;
+    }
+    printf("output\n");
+    timer = toc(timer);
+    print_toc(timer);
+    float median_time = timer.duration / (float) mc_runs;
+    float median_ppm  = ppm_mean / (float) mc_runs; 
+    printf("The medium time per iteration is %2.4f \n",median_time);
+    printf("Calculated PPM is  %2.4f \n",median_ppm);
+}
+
+
+int processing()
+{
+    printf(".\n");
+    int size_fft = 8192;
+    // Copy input to filter 
+    // Create filter 
+    float h[64] = { 1.8820996794181172e-5, 0.00016911703180029665, 0.0004682616688352504, 0.0009133739815152999, 0.0015001672949461978, 0.002222990468745748, 0.0030748823206149228, 0.004047638666328762, 0.005131891330515336, 0.006317198367305728, 0.00759214462198091, 0.00894445166515184, 0.010361096040746563, 0.0118284346890115, 0.01333233633663497, 0.01485831758863409, 0.016391682411365904, 0.017917663663365026, 0.019421565310988497, 0.020888903959253437, 0.022305548334848158, 0.023657855378019087, 0.02493280163269427, 0.026118108669484663, 0.027202361333671238, 0.02817511767938508, 0.029027009531254252, 0.029749832705053804, 0.030336626018484702, 0.03078173833116475, 0.031080882968199705, 0.03123117900320582, 0.03123117900320582, 0.031080882968199705, 0.03078173833116475, 0.0303366260184847, 0.029749832705053804, 0.029027009531254252, 0.028175117679385075, 0.027202361333671238, 0.026118108669484663, 0.024932801632694273, 0.02365785537801909, 0.022305548334848158, 0.020888903959253437, 0.0194215653109885, 0.01791766366336503, 0.016391682411365908, 0.014858317588634094, 0.013332336336634974, 0.011828434689011503, 0.010361096040746563, 0.008944451665151842, 0.0075921446219809115, 0.0063171983673057305, 0.005131891330515339, 0.004047638666328763, 0.0030748823206149236, 0.0022229904687457486, 0.0015001672949461974, 0.000913373981515299, 0.00046826166883524867, 0.00016911703180029752, 1.8820996794179437e-5
+     };
+    // Apply filter 
+    float* out_filter = (float*) malloc(sizeof(float)*(SIZE+64-1));
+    // filt(out_filter,sig,h,SIZE,64);
+
+    // Compute peak detection of signal
+    float* sha = (float*) malloc(sizeof(float)*SIZE);
+    shannon_energy(sha,sig,SIZE,16);
+    // Allocate input and output of FFT 
+    kiss_fft_cpx* c_in  = (kiss_fft_cpx*) malloc(sizeof(float)*2*size_fft);
+    kiss_fft_cpx* c_out = (kiss_fft_cpx*) malloc(sizeof(float)*2*size_fft);
+    // float* res = (float*) malloc(sizeof(float)*size_fft);
+    // Fill the input as a complex one  and handle Zero padding
+    float_to_cplx(c_in,sha,SIZE,SIZE);
+    // Do the FFT
+    kiss_fft_cfg cfg = kiss_fft_alloc(size_fft ,0, NULL,NULL);
+    kiss_fft( cfg , c_in , c_out );
+    // Compute square modulus 
+    abs2(sha,c_out,SIZE);
+    // Find the max
+    int pos_max = find_max(sha,10);
+    //printf("Position of max is %d\n",pos_max);
+    // Deduce PPM 
+    int ppm = to_ppm(pos_max,size_fft,Fs);
+    //printf("Associated PPM is  %d\n",ppm);
+    // Release ressources
+    free(c_in);
+    free(c_out);
+    free(sha);
+    free(out_filter);
+    kiss_fft_free(cfg);
+    printf("We have terminated the processing part  \n");
+    return ppm;
+}
+
+int to_ppm(int pos_max,int size_fft, float Fs)
+{
+    // From max pos to frequency 
+    float delta_f = Fs / ((float) size_fft); 
+    // PPM expressed in float here
+    float ppm_float = 60.0 * delta_f * ((float) pos_max);
+    // Switch to an int value
+    int ppm = (int) round(ppm_float);
+    return ppm;
+}
+
+void HannWindow(float *Window,int size)
+{
+    int ii;
+    for (ii = 0; ii < size; ii++) {
+        Window[ii] = ( 0.5 * (1.0 - cos((2 * M_PI * ii) / (size -1))));
+    }
+}
+
+void abs2(float* out,kiss_fft_cpx* in,int size){
+    // Apply square absolute to each input assuming that in and out as same size 
+    for (int i = 0;i < size;i++){
+        out[i] = in[i].r * in[i].r + in[i].i*in[i].i;
+    }
+}
+
+
+// Convert a input float array into a complex one 
+void float_to_cplx(kiss_fft_cpx* out,float* in, int size_in, int size_out)
+{
+    int ss;
+    if (size_in > size_out){
+        ss = size_out;
+    }
+    else {
+        ss = size_in;
+    }
+    // be sure that array is zero everywhere 
+    for (int i = 0; i < size_out; i++){
+        out[i].r = 0;
+        out[i].i = 0;
+    }
+    // Fill array with input data
+    for (int i = 0; i < ss; i++){
+        out[i].r = in[i];
+        out[i].i = 0;
+    }
+}
+
+
+int find_max(float* in, int size)
+{
+    int max = 0;
+    float vM = 0;
+    for (int i = 1; i < size; i++){
+        if (vM < in[i]){
+            // We have a new max 
+            vM = in[i];
+            max = i;
+        }
+    }
+   return max;
+}
+
+kiss_fft_cpx square(kiss_fft_cpx in)
+{
+    kiss_fft_cpx out;
+    out.r = in.r * in.r - in.i * in.i;
+    out.i = 2 * in.r * in.i;
+    return out;
+}
+
+
+void shannon_energy(float* sha,float* in,int size,int wind)
+{
+    float tmp;
+    float s;
+    float val;
+    float index;
+    for (int i = size-1;i<size;i++){
+        tmp = 0;
+        printf("\n %d \n", i);
+        for (int j=0;j < wind; j++){
+            // Getting index 
+            index = i - wind + j;
+            printf("\n %d (%d,%d,%d)\n", index, i, wind, j);
+            val = in[ i - wind + j ];
+            // Compute square 
+            s = val * val;
+            // Compute false entropy
+            if (s != 0){
+                // Avoid NaN
+                tmp += s * log(s); 
+            }
+        }
+        sha[i] = -1.0 / wind * tmp;
+    }
+};
+
+
+int filt(float* out,float* in,float* h, int size_in, int size_filter)
+{
+   float x;
+   float tmp;
+   // seems weird as we have tail only on left ?
+   for (int n = 0; n < size_in + size_filter  - 1; n++){
+       tmp = 0;
+       for (int j = 0 ; j < size_filter; j++){
+           if ( (n - j) < 0){
+               x = 0;
+           }
+           else{
+               x = in[n - j];
+           }
+           tmp += h[j] * x;
+       }
+       out[n] = tmp;
+   }
+   return (size_filter + size_in - 1);
+}

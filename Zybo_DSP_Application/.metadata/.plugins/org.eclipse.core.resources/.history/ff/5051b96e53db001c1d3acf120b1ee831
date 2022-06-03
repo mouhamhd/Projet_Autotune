@@ -1,0 +1,93 @@
+// Processing functions
+#include "processing.h"
+#include "fixFFT/fixFFT.h"
+#include <stdint.h>
+#include <unistd.h>
+
+
+
+float C_MINOR_TABLE[C_MINOR_SIZE] = {16.352,18.354,19.445,21.827,24.500,25.957,29.135,32.703,36.708,38.891,43.654,48.999,51.913,58.270,65.406,73.416,77.782,87.307,97.999,103.830,116.540,130.810,146.830,155.560,174.610,196.000,207.650,233.080,261.630,293.660,311.130,349.230,392.000,415.300,466.160,523.250,587.330,622.250,698.460,783.990,830.610,932.330,1046.500,1174.700,1244.500,1396.900,1568.000,1661.200,1864.700,2093.000,2349.300,2489.000,2793.800,3136.000,3322.400,3729.300};
+
+int C_MINOR_INDEXES[C_MINOR_SIZE] = {17, 19, 20, 22, 25, 27, 30, 33, 38, 40, 45, 50, 53, 60, 67, 75, 80, 89, 100, 106, 119, 134, 150, 159, 179, 201, 213, 239, 268, 301, 319, 358, 401, 425, 477, 536, 601, 637, 715, 803, 851, 955, 1072, 1203, 1274, 1430, 1606, 1701, 1909, 2143, 2406, 2549, 2861, 3211, 3402, 3819};
+
+void benchmark(int16_t* sig_out,int16_t* sig,int64_t size){
+    int mc_runs = 50;
+    struct_timer timer;
+    /*--------------------------------------------------------------------------
+     * --- Main benchmark call (Monte carlo)
+     * --------------------------------------------------------------------------*/
+    printf("Starting routine\n");
+    timer = tic();
+    for (int c = 0 ; c < mc_runs ; c++){
+        processing(sig_out,sig,size);
+    }
+    timer = toc(timer);
+    printf("output\n");
+    print_toc(timer);
+}
+
+
+int processing(int16_t* sig_out,int16_t* sig, int64_t size)
+{
+    // Core parameters 
+    int segment_duration = 80;
+    int scale = 0;
+    int pos_pitch;
+    // Number of segment we will proceed
+    int nbSeg = (int) (size /segment_duration);
+    // An array with pitch indexes 
+    int16_t* pitch_detected = malloc(sizeof(int16_t) * nbSeg);
+    // An array for FFT computation
+/*    int16_t* container_fft_re = malloc(sizeof(int16_t) * size_fft);*/
+    /*int16_t* container_fft_im = malloc(sizeof(int16_t) * size_fft);*/
+    int16_t container_fft_re[SIZE_FFT];
+    int16_t container_fft_im[SIZE_FFT];
+
+    // Detect pitch for each segment
+    for (int n = 0; n < nbSeg; n++){
+        // ZP approach for the segment 
+        for (int m = 0; m < segment_duration; m++){
+            container_fft_re[m] = sig[ n*segment_duration + m ];
+            container_fft_im[m] = 0;
+        }
+        // Rest of the Input buffer is set to 0 
+        for (int m = segment_duration; m < SIZE_FFT; m++){
+            container_fft_re[m] = 0;
+            container_fft_im[m] = 0;
+        }
+        // Fix point FFT @ Q(16,0,15)
+        scale = fix_fft(container_fft_re,container_fft_im, POWER_FFT,0);
+        // Square modulus (in place replacement in real
+        abs2(container_fft_re,container_fft_im,SIZE_FFT/2);
+        // Find the pitch 
+        pos_pitch = find_max(container_fft_re,C_MINOR_INDEXES,C_MINOR_SIZE);
+        printf("New pitch at %d (scale= %d)\n",pos_pitch,scale);
+    }
+    // Free pointers
+    free(pitch_detected);
+    return 0;
+}
+
+int find_max(int16_t* in, int16_t* indexes,int64_t size)
+{
+    int max = 0;
+    int m = 0;
+    float vM = 0;
+    for (int i = 1; i < size; i++){
+        // Get position of the next minor grid 
+        m = indexes[i];
+        if (vM < in[m]){
+            // We have a new max 
+            vM = in[m];
+            max = m;
+        }
+    }
+   return max;
+}
+
+void abs2(int16_t* re, int16_t* im,int64_t size)
+{
+        for (int m = 0; m < size; m++){
+            re[m] = re[m]*re[m] + im[m]*im[m];
+        }
+}

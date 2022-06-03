@@ -1,0 +1,177 @@
+// Processing functions
+#include "processing.h"
+#include "fixFFT/fixFFT.h"
+#include <stdint.h>
+#include <unistd.h>
+
+
+
+// Define C Table for autotune
+// In Hz 
+float C_MINOR_TABLE[C_MINOR_SIZE] = {16.352,18.354,19.445,21.827,24.500,25.957,29.135,32.703,36.708,38.891,43.654,48.999,51.913,58.270,65.406,73.416,77.782,87.307,97.999,103.830,116.540,130.810,146.830,155.560,174.610,196.000,207.650,233.080,261.630,293.660,311.130,349.230,392.000,415.300,466.160,523.250,587.330,622.250,698.460,783.990,830.610,932.330,1046.500,1174.700,1244.500,1396.900,1568.000,1661.200,1864.700,2093.000,2349.300,2489.000,2793.800,3136.000,3322.400,3729.300};
+// In indexes
+int16_t C_MINOR_INDEXES[C_MINOR_SIZE] = {2, 2, 2, 3, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 9, 10, 11, 13, 13, 15, 17, 19, 20, 22, 25, 27, 30, 33, 38, 40, 45, 50, 53, 60, 67, 75, 80, 89, 100, 106, 119, 134, 150, 159, 179, 201, 213, 239, 268, 301, 319, 358, 401, 425, 477};
+
+void benchmark(int16_t* sig_out,int16_t* sig,int64_t size){
+    int mc_runs = 50;
+    struct_timer timer;
+    /*--------------------------------------------------------------------------
+     * --- Main benchmark call (Monte carlo)
+     * --------------------------------------------------------------------------*/
+    printf("Starting routine\n");
+    timer = tic();
+    for (int c = 0 ; c < mc_runs ; c++){
+        processing(sig_out,sig,size);
+    }
+    timer = toc(timer);
+    printf("output\n");
+    print_toc(timer);
+}
+
+
+int processing(int16_t* sig_out,int16_t* sig, int64_t size)
+{
+    // Core parameters 
+    int segment_duration = 80;
+    int scale = 0;
+    int pos_pitch;
+    int16_t phase = 0;
+    // Number of segment we will proceed
+    int nbSeg = (int) (size /segment_duration);
+    // An array with pitch indexes 
+    // An array for FFT computation
+    int16_t container_fft_re[SIZE_FFT];
+    int16_t container_fft_im[SIZE_FFT];
+
+    // Detect pitch for each segment
+    for (int n = 0; n < nbSeg; n++){
+        // ZP approach for the segment 
+        for (int m = 0; m < segment_duration; m++){
+            container_fft_re[m] = sig[ n*segment_duration + m ];
+            container_fft_im[m] = 0;
+        }
+        // Rest of the Input buffer is set to 0 
+        for (int m = segment_duration; m < SIZE_FFT; m++){
+            container_fft_re[m] = 0;
+            container_fft_im[m] = 0;
+        }
+        // Fix point FFT @ Q(16,0,15)
+        scale = fix_fft(container_fft_re,container_fft_im,POWER_FFT,0);
+        // Square modulus (in place replacement in real
+        abs2(container_fft_re,container_fft_im,SIZE_FFT/2);
+        // Find the pitch 
+        pos_pitch = find_max(container_fft_re,C_MINOR_INDEXES,C_MINOR_SIZE);
+      //  printf("New pitch at %d (scale= %d)\n",pos_pitch,scale);
+        // Synthetize a new pitch 
+        phase = synthetize_pitch(sig_out+n*segment_duration,pos_pitch,segment_duration,phase);
+    }
+    return 0;
+}
+
+int find_max(int16_t* in, int16_t* indexes,int64_t size)
+{
+    int max = 0;
+    int m = 0;
+    float vM = 0;
+    for (int i = 1; i < size; i++){
+        // Get position of the next minor grid 
+        m = indexes[i];
+        if (vM < in[m]){
+            // We have a new max 
+            vM = in[m];
+            max = m;
+        }
+    }
+   return max;
+}
+
+void abs2(int16_t* re, int16_t* im,int64_t size)
+{
+    for (int m = 0; m < size; m++){
+        re[m] = re[m]*re[m] + im[m]*im[m];
+    }
+}
+
+
+int16_t synthetize_pitch(int16_t* out, int16_t pitch, int64_t dur,int16_t phase)
+{
+    // We calculate the sine step. Based on 32768 (Int16 values) and 1024 (fftsize) the formula is 
+    // 32768*pitch * m / SIZE_FFT
+    // We should express this as a fixed point and 32768/1024=32
+    int16_t step = pitch<<5;
+    int16_t cnt = phase;
+    for (int m = 0; m < dur; m++){
+        // angle calculation, accumulate from initial phase and step
+        cnt += step;
+        // Output 
+        out[m] = fpsin2(cnt);
+    }
+    // Store the phase for continuous wave
+    phase += cnt;
+    return phase;
+}
+
+
+/*
+Implements the 5-order polynomial approximation to sin(x).
+@param i   angle (with 2^15 units/circle)
+@return    16 bit fixed point Sine value 
+
+The result is accurate to within +- 1 count. ie: +/-2.44e-4.
+*/
+int16_t fpsin(int16_t i)
+{
+    /* Convert (signed) input to a value between 0 and 8192. (8192 is pi/2, which is the region of the curve fit). */
+    /* ------------------------------------------------------------------- */
+    i <<= 1;
+    uint8_t c = i<0; //set carry for output pos/neg
+
+    if(i == (i|0x4000)) // flip input value to corresponding value in range [0..8192)
+        i = (1<<15) - i;
+    i = (i & 0x7FFF) >> 1;
+    /* ------------------------------------------------------------------- */
+
+    /* The following section implements the formula:
+     = y * 2^-n * ( A1 - 2^(q-p)* y * 2^-n * y * 2^-n * [B1 - 2^-r * y * 2^-n * C1 * y]) * 2^(a-q)
+    Where the constants are defined as follows:
+    */
+    enum {A1=3370945099UL, B1=2746362156UL, C1=292421UL};
+    enum {n=13, p=32, q=31, r=3, a=12};
+
+    uint32_t y = (C1*((uint32_t)i))>>n;
+    y = B1 - (((uint32_t)i*y)>>r);
+    y = (uint32_t)i * (y>>n);
+    y = (uint32_t)i * (y>>n);
+    y = A1 - (y>>(p-q));
+    y = (uint32_t)i * (y>>n);
+    y = (y+(1UL<<(q-a-1)))>>(q-a); // Rounding
+
+    return c ? -y : y;
+}
+
+
+int16_t mul_int16_int16(int16_t x,int16_t y)
+{
+    int16_t res;
+    int32_t tmp = ((int32_t) x * (int32_t) y);
+    res = tmp>>16;
+    return res;
+}
+
+int16_t fpsin2(int16_t x)
+{
+    int16_t tmp;
+    // Taylor constant 
+    int16_t a = 25706;
+    int16_t b = 20939;
+    int16_t c = 18088;
+    // X power 
+    int16_t x2,x3,x5;
+    x2 = mul_int16_int16(x, x);
+    x3 = mul_int16_int16(x2,x);
+    x5 = mul_int16_int16(x3,x2);
+    // Taylor 
+    tmp = ((mul_int16_int16(a, x)>>1) + (mul_int16_int16(c, x5)>>1))>>1;
+    tmp += -(mul_int16_int16(b, x3)>>1);
+    return tmp;
+}

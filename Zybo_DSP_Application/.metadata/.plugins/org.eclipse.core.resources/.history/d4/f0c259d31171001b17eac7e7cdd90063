@@ -1,0 +1,245 @@
+/************************************************************************/
+/*	 Main function call 
+/       Minimal code to instantiate all the stuff and do the processing 																	*/
+/************************************************************************/
+/************************** Run mode  ******************************/
+#define RUN_MODE 1
+// 0 ==> Offline mode: compute BPM of the signal provided in data_file.h
+// 1 ==> Online mode : Process data based on line in
+// 2 ==> Benchmark mode : benchmark processing() and returns the mean time
+/*******************************************************************/
+
+// Main call prototype to hide glue for platform description
+#include "main.h"
+
+/* ---- Platform design header --- */
+#include "audio/audio.h"
+#include "dma/dma.h"
+#include "iic/intc.h"
+#include "userio/userio.h"
+#include "iic/iic.h"
+
+/* --- Zynq 7010 header files --- */
+#include "xaxidma.h"
+#include "xparameters.h"
+#include "xil_exception.h"
+#include "xdebug.h"
+#include "xiic.h"
+#include "xaxidma.h"
+#include "xtime_l.h"
+
+/* --- Sleep system  --- */
+#include "xscugic.h"
+#include "sleep.h"
+#include "xil_cache.h"
+
+/* --- Including user space functions  --- */
+#include "printers/printers.h"
+#include "timers/timers.h"
+#include "kissFFT/kiss_fft.h"
+#include "data_file.h"
+#include "processing.h"
+
+/* --- Constant definition  --- */
+// Audio constants
+// Number of seconds to record/playback
+#define NR_SEC_TO_REC_PLAY 5
+// ADC/DAC sampling rate in Hz
+#define AUDIO_SAMPLING_RATE 96000 // (44kHz stero)
+// Number of samples to record/playback
+#define NR_AUDIO_SAMPLES (NR_SEC_TO_REC_PLAY * AUDIO_SAMPLING_RATE)
+// Timeout loop counter for reset
+#define RESET_TIMEOUT_COUNTER 10000
+#define TEST_START_VALUE 0x0
+
+
+
+/* --- Other definition  --- */
+#if (!defined(DEBUG))
+extern void xil_printf(const char *format, ...);
+#endif
+static XIic sIic;
+static XAxiDma sAxiDma; /* Instance of the XAxiDma */
+static XGpio sUserIO;
+static XScuGic sIntc;
+// Interrupt vector table
+const ivt_t ivt[] = {
+    //IIC
+    {XPAR_FABRIC_AXI_IIC_0_IIC2INTC_IRPT_INTR, (Xil_ExceptionHandler)XIic_InterruptHandler, &sIic},
+    //DMA Stream to MemoryMap Interrupt handler
+    {XPAR_FABRIC_AXI_DMA_0_S2MM_INTROUT_INTR, (Xil_ExceptionHandler)fnS2MMInterruptHandler, &sAxiDma},
+    //DMA MemoryMap to Stream Interrupt handler
+    {XPAR_FABRIC_AXI_DMA_0_MM2S_INTROUT_INTR, (Xil_ExceptionHandler)fnMM2SInterruptHandler, &sAxiDma},
+    //User I/O (buttons, switches, LEDs)
+    {XPAR_FABRIC_AXI_GPIO_0_IP2INTC_IRPT_INTR, (Xil_ExceptionHandler)fnUserIOIsr, &sUserIO}};
+
+
+int main(void)
+{
+    /*--------------------------------------------------------------------------
+    * --- Init all stuff 
+    * --------------------------------------------------------------------------*/
+    // Do nothing here !!
+    int Status;
+    Demo.u8Verbose = 1;
+    printf("\n--- Entering main() --- \n");
+
+    //Initialize the interrupt controller
+    Status = fnInitInterruptController(&sIntc);
+    if (Status != XST_SUCCESS)
+    {
+        printf("Error initializing interrupts");
+        return XST_FAILURE;
+    }
+    // Initialize IIC controller
+    Status = fnInitIic(&sIic);
+    if (Status != XST_SUCCESS)
+    {
+        printf("Error initializing I2C controller");
+        return XST_FAILURE;
+    }
+    // Initialize User I/O driver
+    Status = fnInitUserIO(&sUserIO);
+    if (Status != XST_SUCCESS)
+    {
+        printf("User I/O ERROR");
+        return XST_FAILURE;
+    }
+    //Initialize DMA
+    Status = fnConfigDma(&sAxiDma);
+    if (Status != XST_SUCCESS)
+    {
+        printf("DMA configuration ERROR");
+        return XST_FAILURE;
+    }
+    //Initialize Audio I2S
+    Status = fnInitAudio();
+    if (Status != XST_SUCCESS)
+    {
+        printf("Audio initializing ERROR");
+        return XST_FAILURE;
+    }
+    // Waiting to be sure HW is ready
+    {
+        XTime tStart, tEnd;
+        XTime_GetTime(&tStart);
+        do
+        {
+            XTime_GetTime(&tEnd);
+        } while ((tEnd - tStart) / (COUNTS_PER_SECOND / 10) < 20);
+    }
+    //Initialize Audio I2S
+    Status = fnInitAudio();
+    if (Status != XST_SUCCESS)
+    {
+        printf("Audio initializing ERROR");
+        return XST_FAILURE;
+    }
+    // Enable all interrupts in our interrupt vector table
+    fnEnableInterrupts(&sIntc, &ivt[0], sizeof(ivt) / sizeof(ivt[0]));
+
+    /*--------------------------------------------------------------------------
+    * --- Processing
+    * --------------------------------------------------------------------------*/
+    printf("----------------------------------------------------------\n");
+    printf("Zybo Z7-10 DMA Audio Demo\n");
+    printf("----------------------------------------------------------\n");
+    Demo.fDmaMM2SEvent = 0;
+    Demo.fDmaS2MMEvent = 0;
+
+    if (RUN_MODE== 0)
+    {
+        /*--------------------------------------------------------------------------
+        * --- Offline Processing
+        * --------------------------------------------------------------------------*/
+        /*
+        Here you can do the processing you want ! 
+        - The signal to be analyzed (offline) is defined in data_file.h and is called sig 
+        */
+        int bpm = 0;
+        // ! Add the code here !
+        bpm = processing();
+        printf("The estimated BPM for the file [offline] is %d\n", bpm);
+    }
+    if (RUN_MODE == 1)
+    {
+        /*--------------------------------------------------------------------------
+        * --- Online processing
+        * --------------------------------------------------------------------------*/
+        /*
+        Real time processing part !
+        - It records 5 seconds processing 
+        - At the location of the audio buffer, replace it by a sine wave 
+        - and then play it into the HP 
+        */
+       // --- Record
+        printf("Records 5 second signals \n");
+        fnSetMicInput();
+        fnAudioRecord(sAxiDma, NR_AUDIO_SAMPLES);
+        u8 waitRecord = 1;
+        while (waitRecord)
+        {
+            // Checking the DMA S2MM event flag
+            if (Demo.fDmaS2MMEvent)
+            {
+                printf("\nRecorded done\n");
+                // Disable Stream function to send data (S2MM)
+                Xil_Out32(I2S_STREAM_CONTROL_REG, 0x00000000);
+                Xil_Out32(I2S_TRANSFER_CONTROL_REG, 0x00000000);
+                Xil_DCacheInvalidateRange((u32)MEM_BASE_ADDR, 5 * NR_AUDIO_SAMPLES);
+                // Reset S2MM event and record flag
+                Demo.fDmaS2MMEvent = 0;
+                Demo.fAudioRecord = 0;
+                waitRecord = 0;
+            }
+        }
+        // --- Processing
+        // We replace the buffer by audio sine wave
+        // u32 *ptr0 = (u32 *)(MEM_BASE_ADDR);
+        // double f = 400;
+        // double fe = 44000;
+        // u32 word = 0;
+        // for (int i = 0; i < 5 * 96000; i++)
+        // {
+        //     word = (u32)(round( (0.5 + 0.5* sin( 2*M_PI*i*f/fe)) * (float)(2<<19)));
+        //     ptr0[i] = word;
+        // }
+        // --- Payback
+        printf("Play back 5 second signals \n");
+        fnSetHpOutput();
+        fnAudioPlay(sAxiDma, NR_AUDIO_SAMPLES);
+        // Checking the DMA MM2S event flag
+        u8 waitPlay = 1;
+        while (waitPlay)
+        {
+            if (Demo.fDmaMM2SEvent)
+            {
+                printf("\nPayback done \n");
+                // Disable Stream function to send data (S2MM)
+                Xil_Out32(I2S_STREAM_CONTROL_REG, 0x00000000);
+                Xil_Out32(I2S_TRANSFER_CONTROL_REG, 0x00000000);
+                //Reset MM2S event and playback flag
+                Demo.fDmaMM2SEvent = 0;
+                Demo.fAudioPlayback = 0;
+                Xil_DCacheFlushRange((u32)MEM_BASE_ADDR, 4 * NR_AUDIO_SAMPLES); //FIXME 4*NR
+                waitPlay = 0;
+            }
+        }
+        // Print the result into the UART
+        u32 *ptr = (u32 *)(MEM_BASE_ADDR + XAXIDMA_BUFFLEN_OFFSET);
+        print_array_u32(ptr, 5 * 96000, "res");
+        printf("\n--- End of Simulation --- \n");
+    }
+    if (RUN_MODE == 2){
+        /*--------------------------------------------------------------------------
+        * --- Benchmark
+        * --------------------------------------------------------------------------*/
+       benchmark();
+    }
+
+    /*--------------------------------------------------------------------------
+     * --- Recording  
+     * --------------------------------------------------------------------------*/
+    printf("\n--- End of Simulation --- \n");
+    return XST_SUCCESS;
+}
