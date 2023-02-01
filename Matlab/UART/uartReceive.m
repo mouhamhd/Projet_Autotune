@@ -26,7 +26,7 @@ while CONTINUE
     % --- Push all result in the current dictionnary
     allC{end+1} = content;
     % --- Evaluate the content directly in the Matlab scope     
-    if contains(content,'End of Simulation')
+    if contains(content,'End of Processing')
         CONTINUE = false;
     end
 end
