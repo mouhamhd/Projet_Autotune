@@ -8,22 +8,25 @@
 clc;
 close all;
 clear all
+analyse_audio('/users/elo/myate/Projet_PTS_Israel_Mouhameth/2a_sysnum_dsp_project_autotune/Base_Sound/synth_sweep_4.wav');
 
-%function tf =  analyse_audio("fichier")
-
+function analyse_audio(file)
 % Pure Filter ananlysis
-
-[sig,fs] = audioread("guitar_3.wav");                   %Recupération du signal
+[sig,fs] = audioread(file);                 %Recupération du signal
 plot(sig);
+xlabel("n");
+ylabel('amplitude');
+title('signal in time domain');
 N = length(sig);                            % Nombre d'échantillons du signal
 %stem(sig);                %Le signal echantilloné
 tf = fftshift(fft(sig));
-t = (0:fs/N:(N-1));
+t = (-fs/2 : fs/(N-1) : (fs/2));
 figure;
-plot(tf);
+plot(t,tf);
 xlabel("Frequence in herz");
 ylabel('linear magnitude of the amplitude');
 title('fourier transform of the filter');
+end
 
 
 

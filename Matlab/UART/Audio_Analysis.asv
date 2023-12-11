@@ -8,12 +8,11 @@
 clc;
 close all;
 clear all
+analyse_audio('/users/elo/myate/Projet_PTS_Israel_Mouhameth/2a_sysnum_dsp_project_autotune/Base_Sound/synth_.wav');
 
-function analyse_audio("fichier")
-
+function analyse_audio(file)
 % Pure Filter ananlysis
-
-[sig,fs] = audioread("guitar_2.wav");                   %Recupération du signal
+[sig,fs] = audioread(file);                 %Recupération du signal
 plot(sig);
 xlabel("n");
 ylabel('amplitude');
@@ -27,7 +26,7 @@ plot(t,tf);
 xlabel("Frequence in herz");
 ylabel('linear magnitude of the amplitude');
 title('fourier transform of the filter');
-end;
+end
 
 
 
