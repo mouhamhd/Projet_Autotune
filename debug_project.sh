@@ -1,6 +1,10 @@
-#!/bin/bash
+#!/bin/bash 
 
-# Black magic on metadata 
-rm -rvf ./Zybo_DSP_Application/.metadata/ 
-# And launch the project 
+# If the SDK does not launch, need to clear metadata 
+rm -rv ./Zybo_PTS_Application/.metadata 
+rm -rv ./Zybo_PTS_Application/.sdk/
+rm -rv ./Zybo_PTS_Application/.Xil/
+echo "Clear done --"
+# Launch project
 ./launch_project.sh
+
