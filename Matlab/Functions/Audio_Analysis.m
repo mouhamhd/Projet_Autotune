@@ -32,11 +32,6 @@ xlabel("Frequence in herz");
 ylabel('linear magnitude of the amplitude');
 title('fourier transform of the filter');
 
-
 time_frequency (sig , fs , size_fft , d);
 end
-
-
-
-
 
