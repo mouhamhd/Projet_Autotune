@@ -20,4 +20,5 @@ plot(fft(sig))
 
 length(sig)
 size(sig)
-fs
+%p = 
+%X = reshape(sig , p ,k)
