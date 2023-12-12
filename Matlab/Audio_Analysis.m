@@ -12,9 +12,11 @@ analyse_audio('/users/elo/myate/Projet_PTS_Israel_Mouhameth/2a_sysnum_dsp_projec
 
 
 
-function analyse_audio(file)
-d = 100*10^(-3);
+function [sig , fs] = analyse_audio(file)
 % Pure Filter ananlysis
+size_fft = 1024;
+d = 0.1;
+
 [sig,fs] = audioread(file);                 %Recupération du signal
 plot(sig);
 xlabel("n");
@@ -30,15 +32,5 @@ xlabel("Frequence in herz");
 ylabel('linear magnitude of the amplitude');
 title('fourier transform of the filter');
 
-Ts = 1/fs
-p = floor(d/Ts)
-%k = floor(length(sig)/p)
-k = floor(length(sig)/p)
-a = p*k
-length(sig)
-X = reshape(sig , [p ,k]);
-size(X)
 end
-
-
 
