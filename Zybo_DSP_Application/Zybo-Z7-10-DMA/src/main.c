@@ -69,6 +69,15 @@ void resetDma(){
     Demo.fAudioPlayback = 0;
     Xil_DCacheFlushRange((u32)(MEM_BASE_ADDR+ XAXIDMA_BUFFLEN_OFFSET), AUDIO_WORDS); 
 }
+void populate(u32* ptr0 ,int16_t* sig ,int16_t* size){
+
+
+	for (int i = 0; i < SIZE; i++)
+			{
+				ptr0[2*i]   = (u32)(sig[i]);
+				ptr0[2*i+1]   = (u32)(sig[i]);
+			}
+}
 
 int main(void)
 {
@@ -154,6 +163,7 @@ int main(void)
      * /!\ It also corresponds to the position of the RECORDED data !
      */
     //TODO [Iteration 1] Instantiate ptr0 as a u32 pointer here
+    u32 *ptr0 = (u32 *)(MEM_BASE_ADDR + XAXIDMA_BUFFLEN_OFFSET);
 
     if (RUN_MODE== 0)
     {
@@ -168,6 +178,7 @@ int main(void)
            */
 
         //TODO [Iteration 1] Populate ptr (with sig) to ensure direct  audio rendering
+    	populate(ptr0 , sig ,SIZE);
 
         //TODO [Iteration 2] Write generate_synth_sig_1() and  generate_synth_sig_2()to generate sig_out
         //TODO [Iteration 3] Write and fill processing() to generate sig_out
