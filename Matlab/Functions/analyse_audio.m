@@ -5,16 +5,11 @@
 % 
 % Enseignant : Robin GERZAGUET
 
-clc;
-close all;
-clear all
 
 
-analyse_audio('/users/elo/myate/Projet_PTS_Israel_Mouhameth/2a_sysnum_dsp_project_autotune/Base_Sound/guitar_1.wav');
-function analyse_audio(file)
+function [sig,fs] = analyse_audio(file)
 % Pure Filter ananlysis
-size_fft = 2048;
-d = 0.1;
+
 
 [sig,fs] = audioread(file);                 %Recupération du signal
 plot(sig);
