@@ -1,7 +1,7 @@
 % ##########################
 % Projet PTS
 % 
-% Auteurs : KAFNDO Boenzemwendé Israel & YATE Mouhammeth
+% Auteurs : KAFNDO Boenzemwendé Israel & YATE Mouhameth
 % 
 % Enseignant : Robin GERZAGUET
 
