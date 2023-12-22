@@ -13,7 +13,7 @@ a_init = 12/pi - 9/4;
 b_init = -2*a_init  + 5/2;
 c_init = a_init - 3/2;
 
-x = lshift(x, 15);
+%x = lshift(x, 15); To be done outside the function
 a = lshift(a_init, 14);
 b = lshift(b_init, 15);
 c = lshift(c_init, 18);
@@ -32,18 +32,17 @@ a_x = lshift(a_x_init, 1);
 
 %multiplication of x_3 with b
 b_x_cube = multiplier(x_cube, b);
-b_x_cube = lshift(b_x_cube, 1);
+
 
 
 %multiplication of x_5 with c
 c_x_5 =  multiplier(x_pow_5, c);
-c_x_5 = rshift(c_x_5, 2);
+c_x_5 = rshift(c_x_5, 3);
 
 
 %Adding  
 %temp = b_x_cube + c_x_5;
 temp = add_int16_int16(b_x_cube, c_x_5);
-temp = lshift(temp, 1);
 %prod_temp = temp + a_x;
 prod_temp  = add_int16_int16(temp, a_x);
 prod = lshift(prod_temp, 1);

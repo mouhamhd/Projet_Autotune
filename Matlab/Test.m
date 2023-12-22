@@ -20,29 +20,37 @@ addpath('.././Base_Sound/');
 
 %**********************************************%
 
-a = 12/pi - 9/4;
-b = -2*a  + 5/2;
-c = a - 3/2;
-
-
-x = -1.5:0.01:1.5;
-y = zeros(1, length(x));
-y_p = y;
-for i = 1:length(x)
-    y(i) = fixSine(x(i));
-end
-
-for i = 1:length(x)
-    y_p(i) = a*x(i) + b*(x(i))^3 + c*(x(i))^5;
-end
-
-figure(1); hold on;
-plot(x, y/(max(abs(y))));
-figure(1); hold on;
-plot(x, sin((pi/2)*x));
-figure(1); hold on;
-plot(x, y_p);
-legend('sine','y[p]');
-legend('FixSine','sine','y[p]');
-
-%time_frequency (sig , fs , size_fft , d);
+% a = 12/pi - 9/4;
+% b = -2*a  + 5/2;
+% c = a - 3/2;
+% 
+% 
+% % x = linspace(-pi,pi,2000);
+% % X = x.* 2/pi;
+% %e = X .* 2^14;
+% 
+% e = -1.99:0.01:1.99;
+% y = zeros(1, length(e));
+% y_p = y;
+% for i = 1:length(e)
+%     x(i) = lshift(e(i), 14);
+%     y(i) = sinfpv2(x(i));
+% end
+% 
+% 
+%  
+% 
+% % for i = 1:length(e)
+% %     y_p(i) = a*e(i) + b*(e(i))^3 + c*(e(i))^5;
+% % end
+% 
+% 
+% figure(1); hold on;
+% plot(e, y/(max(abs(y))));
+% figure(1); hold on;
+% plot(e, sin((pi/2)*e));
+% figure(1); hold on;
+% legend();
+% legend('FixSine','sine');
+% 
+% %time_frequency (sig , fs , size_fft , d)

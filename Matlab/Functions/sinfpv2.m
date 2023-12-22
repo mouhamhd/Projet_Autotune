@@ -1,13 +1,20 @@
- function out = sinfpv2(x)
 
 
-   if (x < 2^15 & x > -2^15)
+function out = sinfpv2(x)
+    %Function return a sin value of a number x betwen -pi and pi
+
+   if (x < 16384 && x > - 16384) % x is betwen -pi/2 and pi/2
+       x = lshift(x, 1);
      out = fixSine(x);
-     elseif(x >= 2^15 & x < 2*2^14)
-      out = fixSine(2*2^14-x);
-     else
-      out = fixSine(-2*2^14-x);
-   endif
+     elseif(x >= 16384 && x < 32768) % x is betwen pi/2 and pi 
+      x_temp = add_int16_int16(32768, -x);
+      x_temp = lshift(x_temp, 1);
+      out = fixSine(x_temp);
+   else
+      x_temp = add_int16_int16(-32768, -x);
+      x_temp = lshift(x_temp, 1);
+      out = fixSine(x_temp);  %x is betwen -pi and -pi/2 
+   end
 
- endfunction
+ end
 
