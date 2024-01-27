@@ -16,7 +16,7 @@ plot(sig);
 xlabel("n");
 ylabel('amplitude');
 title('signal in time domain');
-N = length(sig)                            % Nombre d'échantillons du signal
+N = length(sig) ;                           % Nombre d'échantillons du signal
 %stem(sig);                %Le signal echantilloné
 tf = fftshift(fft(sig));
 t = (-fs/2 : fs/(N-1) : (fs/2));

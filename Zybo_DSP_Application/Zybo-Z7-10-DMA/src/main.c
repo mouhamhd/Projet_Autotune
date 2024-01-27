@@ -178,9 +178,12 @@ int main(void)
            */
 
         //TODO [Iteration 1] Populate ptr (with sig) to ensure direct  audio rendering
-    	populate(ptr0 , sig ,SIZE);
+    	//populate(ptr0 , sig ,SIZE);
 
         //TODO [Iteration 2] Write generate_synth_sig_1() and  generate_synth_sig_2()to generate sig_out
+    	 int16_t  sigin[40000];
+    	 generate_wave(sigin, 4000, 40000);
+    	 populate(ptr0, sigin, 40000);
         //TODO [Iteration 3] Write and fill processing() to generate sig_out
         //TODO [Iteration 4] update  processing() to generate sig_out
 

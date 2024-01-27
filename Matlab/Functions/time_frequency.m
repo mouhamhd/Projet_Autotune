@@ -23,10 +23,10 @@ function M_mod = time_frequency (x, fs, size_fft, d)
 
 
 Ts =  1/fs;                   %Sampling time
-p = floor(d/(Ts))             %Number of elements in every piece
-k = floor(length(x)/(p))      %Number of pieces to which the input is chunked
+p = floor(d/(Ts)) ;            %Number of elements in every piece
+k = floor(length(x)/(p)) ;     %Number of pieces to which the input is chunked
 
-nb_taille = (p*k)            % The number of elemnts that will considered for the fft calculation
+nb_taille = (p*k)  ;          % The number of elemnts that will considered for the fft calculation
 x_int = x(1:nb_taille);     % Take elements in a fitting size if p*k is different than the input length
 x_int = x_int(1 : (nb_taille));
 nbzeros = size_fft - p;      %Number of rzeros to add for zero padding

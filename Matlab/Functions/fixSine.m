@@ -9,15 +9,11 @@
 
 function prod = fixSine(x)
 
-a_init = 12/pi - 9/4;
-b_init = -2*a_init  + 5/2;
-c_init = a_init - 3/2;
+a = 25718; 
+b = -20953;
+c =  18276; 
 
-%x = lshift(x, 15); To be done outside the function
-a = lshift(a_init, 14);
-b = lshift(b_init, 15);
-c = lshift(c_init, 18);
-
+%Intermediate values
 x_square = multiplier(x, x); 
 x_square = lshift(x_square, 1);
 x_cube   = multiplier(x_square, x);
@@ -34,22 +30,15 @@ a_x = lshift(a_x_init, 1);
 b_x_cube = multiplier(x_cube, b);
 
 
-
 %multiplication of x_5 with c
 c_x_5 =  multiplier(x_pow_5, c);
 c_x_5 = rshift(c_x_5, 3);
 
 
 %Adding  
-%temp = b_x_cube + c_x_5;
 temp = add_int16_int16(b_x_cube, c_x_5);
-%prod_temp = temp + a_x;
 prod_temp  = add_int16_int16(temp, a_x);
 prod = lshift(prod_temp, 1);
-%prod = prod_temp;
-
-
-
 
 
 end
