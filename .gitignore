@@ -5,3 +5,5 @@
 *.o 
 .DS_STORE
 *.log
+Zybo_DSP_Application/.sdk/
+Zybo_DSP_Application/.metadata/

@@ -1,0 +1,17 @@
+ % ##########################
+% Projet PTS
+% 
+% Auteurs : KAFNDO Boenzemwendé Israel & YATE Mouhammeth
+% 
+% Enseignant : Robin GERZAGUET
+
+
+function active_frequency(M)    % M is a
+
+[freq_max, k] = max(M, [] ,'linear'); %
+figure;
+plot(freq_max);
+xlabel('Time in seconde');
+ylabel('Frequency in Hz');
+title('Active frequence in the the signal');
+end
